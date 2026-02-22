@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-import os, sys, time, select, termios, tty
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'hide'
-import pygame
+import os, sys, time, select, termios, tty, subprocess, shutil
+from threading import Thread
 
 CLEAR   = '\033[H\033[2J'
 HIDE    = '\033[?25l'
@@ -47,31 +46,177 @@ def read_key(fd, timeout=None):
 
 
 def get_duration(filepath):
-    # mutagen reads only the audio header, avoiding loading the full file
     try:
         from mutagen import File as MFile
         f = MFile(filepath)
-        if f is not None and f.info.length:
-            return f.info.length
+        if f is not None and f.info is not None and f.info.length:
+            return float(f.info.length)
+    except Exception:
+        pass
+    return 0.0
+
+
+
+class VLCBackend:
+    def __init__(self):
+        import vlc
+        self._vlc  = vlc
+        self._inst = vlc.Instance('--no-video', '--quiet')
+        self._mp   = self._inst.media_player_new()
+        self._vol  = 50
+
+    def load(self, path):
+        media = self._inst.media_new(path)
+        self._mp.set_media(media)
+
+    def play(self):
+        self._mp.play()
+        self._mp.audio_set_volume(self._vol)
+
+    def pause(self): self._mp.pause()
+    def stop(self):  self._mp.stop()
+
+    def set_volume(self, v01):
+        self._vol = int(v01 * 100)
+        self._mp.audio_set_volume(self._vol)
+
+    def get_volume(self): return self._vol / 100.0
+
+    def get_pos(self):
+        t = self._mp.get_time()
+        return t / 1000.0 if t >= 0 else 0.0
+
+    def set_pos(self, seconds):
+        self._mp.set_time(int(seconds * 1000))
+
+    def is_playing(self):
+        return self._mp.is_playing()
+
+    def is_paused(self):
+        state = self._mp.get_state()
+        return state == self._vlc.State.Paused
+
+    def is_ended(self):
+        state = self._mp.get_state()
+        return state in (self._vlc.State.Ended, self._vlc.State.Stopped,
+                         self._vlc.State.Error, self._vlc.State.NothingSpecial)
+
+
+class FFPlayBackend:
+
+    def __init__(self):
+        if not shutil.which('ffplay'):
+            raise RuntimeError('ffplay not found')
+        self._proc    = None
+        self._vol     = 0.5
+        self._start   = 0.0
+        self._offset  = 0.0
+        self._paused  = False
+        self._pause_t = 0.0
+        self._paused_accum = 0.0
+        self._path    = None
+        self._ended   = False
+
+    def _kill(self):
+        if self._proc and self._proc.poll() is None:
+            self._proc.terminate()
+            try: self._proc.wait(timeout=1)
+            except Exception: self._proc.kill()
+        self._proc = None
+
+    def load(self, path):
+        self._kill()
+        self._path   = path
+        self._offset = 0.0
+        self._ended  = False
+
+    def play(self):
+        self._kill()
+        vol_ffplay = int(self._vol * 100)
+        cmd = ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet',
+               '-ss', str(self._offset),
+               '-volume', str(vol_ffplay),
+               self._path]
+        self._proc  = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+        self._start        = time.monotonic()
+        self._paused       = False
+        self._paused_accum = 0.0
+        self._ended        = False
+        Thread(target=self._watch, daemon=True).start()
+
+    def _watch(self):
+        if self._proc: self._proc.wait()
+        self._ended = True
+
+    def pause(self):
+        if self._paused or not self._proc: return
+        self._offset = self.get_pos()
+        self._kill()
+        self._paused  = True
+        self._pause_t = time.monotonic()
+
+    def resume(self):
+        if not self._paused: return
+        self._paused = False
+        self.play()
+
+    def stop(self):
+        self._kill()
+        self._ended = True
+
+    def set_volume(self, v01):
+        self._vol = max(0.0, min(1.0, v01))
+        
+        if self._paused:
+            return
+        if self._proc and self._proc.poll() is None:
+            self._offset = self.get_pos()
+            self.play()
+    def get_volume(self): return self._vol
+
+    def get_pos(self):
+        if self._paused: return self._offset
+        if not self._proc:  return self._offset
+        return self._offset + (time.monotonic() - self._start)
+
+    def set_pos(self, seconds):
+        was_paused = self._paused
+        self._offset = max(0.0, seconds)
+        self._kill()
+        self._paused = False
+        if not was_paused:
+            self.play()
+
+    def is_playing(self): return bool(self._proc and self._proc.poll() is None)
+    def is_paused(self):  return self._paused
+    def is_ended(self):   return self._ended and not self._paused
+
+
+def make_backend():
+    try:
+        b = VLCBackend()
+        return b, 'vlc'
     except Exception:
         pass
     try:
-        snd = pygame.mixer.Sound(filepath)
-        d = snd.get_length()
-        del snd
-        return d if d > 0 else 0.0
+        b = FFPlayBackend()
+        return b, 'ffplay'
     except Exception:
-        return 0.0
+        pass
+    sys.exit('Error: neither python-vlc nor ffplay found.\n'
+             'Install one:  pip install python-vlc   OR   apt install ffmpeg')
+
 
 
 class CyMus:
-    __slots__ = ('playing_now', 'is_paused', 'volume', 'row', 'path', 'songs',
-                 'rpc', 'rpc_ok', 'fd',
-                 'song_duration', 'song_start', 'pause_start', 'paused_accum')
+    __slots__ = ('playing_now', '_paused_flag', 'volume', 'row', 'path', 'songs',
+                 'rpc', 'rpc_ok', 'fd', 'song_duration', 'backend', '_backend_name')
 
     def __init__(self):
         self.playing_now  = None
-        self.is_paused    = False
+        self._paused_flag = False
         self.volume       = 0.5
         self.row          = 0
         self.path         = ''
@@ -79,12 +224,9 @@ class CyMus:
         self.fd           = sys.stdin.fileno()
         self.rpc_ok       = False
         self.rpc          = None
-        self.song_duration  = 0.0
-        self.song_start     = 0.0
-        self.pause_start    = 0.0
-        self.paused_accum   = 0.0
-        pygame.mixer.pre_init(44100, -16, 2, 512)
-        pygame.mixer.init()
+        self.song_duration = 0.0
+        self.backend, self._backend_name = make_backend()
+        self.backend.set_volume(self.volume)
         try:
             from pypresence import Presence
             self.rpc = Presence(CLIENT_ID)
@@ -93,19 +235,21 @@ class CyMus:
         except Exception:
             pass
 
+    @property
+    def is_paused(self):
+        return self._paused_flag
+
     def _elapsed(self):
         if not self.playing_now: return 0.0
-        if self.is_paused:
-            return self.pause_start - self.song_start - self.paused_accum
-        return time.monotonic() - self.song_start - self.paused_accum
+        return self.backend.get_pos()
 
     def _seek(self, delta):
         if not self.playing_now or self.song_duration <= 0: return
         pos = max(0.0, min(self._elapsed() + delta, self.song_duration - 0.5))
         try:
-            pygame.mixer.music.set_pos(pos)
-            self.song_start   = time.monotonic() - pos
-            self.paused_accum = 0.0
+            self.backend.set_pos(pos)
+            if self._paused_flag:
+                pass
         except Exception:
             pass
 
@@ -119,15 +263,12 @@ class CyMus:
 
     def _play(self):
         if not self.songs: return
-        self.playing_now  = self.songs[self.row]
+        self.playing_now   = self.songs[self.row]
         fp = os.path.join(os.path.expanduser(self.path), self.playing_now)
-        pygame.mixer.music.load(fp)
-        pygame.mixer.music.set_volume(self.volume)
-        pygame.mixer.music.play()
-        self.is_paused    = False
-        self.song_start   = time.monotonic()
-        self.paused_accum = 0.0
         self.song_duration = get_duration(fp)
+        self.backend.load(fp)
+        self.backend.play()
+        self._paused_flag  = False
         if self.rpc_ok:
             try:
                 self.rpc.update(details=self.playing_now[:50],
@@ -145,6 +286,7 @@ class CyMus:
             return f' {CYAN}{fmt_time(elapsed)}{RESET} {bar} {CYAN}{fmt_time(duration)}{RESET}'
         spin = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
         return f' {CYAN}{fmt_time(elapsed)}{RESET} {DIM}{"─" * bar_w}{RESET} {YELLOW}{spin[int(elapsed) % len(spin)]}{RESET}'
+
 
     def browse(self, start=None):
         cur_path = os.path.realpath(start or os.path.expanduser('~'))
@@ -235,6 +377,7 @@ class CyMus:
                 elif cursor >= scroll + max_vis: scroll = cursor - max_vis + 1
                 draw(cur_path, dirs, songs, cursor, scroll)
 
+
     def _draw_player(self):
         cols, rows = os.get_terminal_size()
         max_vis = max(1, rows - 7)
@@ -244,14 +387,14 @@ class CyMus:
         if end == total: start = max(0, total - max_vis)
 
         out = [CLEAR, HIDE,
-               BG_DARK, MAGENTA, BOLD, ' PY-MUS'.center(cols), RESET, '\n',
+               BG_DARK, MAGENTA, BOLD, f'PY-MUS'.center(cols), RESET, '\n',
                DIM, hline(cols), RESET, '\n']
 
         for i in range(start, end):
             song = self.songs[i]
-            if i == self.row:          out += [BG_SEL, CYAN, BOLD, f' → {song}', RESET, '\n']
+            if i == self.row:              out += [BG_SEL, CYAN, BOLD, f' → {song}', RESET, '\n']
             elif song == self.playing_now: out += [GREEN, BOLD, f' ▶ {song}', RESET, '\n']
-            else:                      out += [DIM, f'   {song}', RESET, '\n']
+            else:                          out += [DIM, f'   {song}', RESET, '\n']
 
         st    = f'{YELLOW}⏸{RESET}' if self.is_paused else f'{GREEN}▶{RESET}'
         v_n   = int(self.volume * 10)
@@ -281,7 +424,7 @@ class CyMus:
                 else: break
                 self._draw_player(); continue
 
-            if self.playing_now and not self.is_paused and not pygame.mixer.music.get_busy():
+            if self.playing_now and not self.is_paused and self.backend.is_ended():
                 self.row = (self.row + 1) % len(self.songs)
                 self._play(); self._draw_player()
 
@@ -299,26 +442,33 @@ class CyMus:
             elif key.lower() == 'p':       self.row = (self.row - 1) % len(self.songs); self._play()
             elif key == ' ':
                 if self.playing_now:
-                    if self.is_paused:
-                        pygame.mixer.music.unpause()
-                        self.paused_accum += time.monotonic() - self.pause_start
+                    if self._paused_flag:
+                        if hasattr(self.backend, 'resume'):
+                            self.backend.resume()
+                        else:
+                            self.backend.pause()
+                        self._paused_flag = False
                     else:
-                        pygame.mixer.music.pause()
-                        self.pause_start = time.monotonic()
-                    self.is_paused = not self.is_paused
-            elif key in ('\x1b[D', 'h'):    self._seek(-5)
-            elif key in ('\x1b[C', 'l'):    self._seek(+5)
+                        self.backend.pause()
+                        self._paused_flag = True
+            elif key in ('\x1b[D', 'h'):   self._seek(-5)
+            elif key in ('\x1b[C', 'l'):   self._seek(+5)
             elif key.lower() == 'o':
                 W(CLEAR, SHOW)
                 sel = self.browse()
                 if sel: self.path = sel; self.songs = self._scan(self.path); self.row = 0
-            elif key in ('+', '='):        self.volume = min(1.0, self.volume + 0.05); pygame.mixer.music.set_volume(self.volume)
-            elif key in ('-', '_'):        self.volume = max(0.0, self.volume - 0.05); pygame.mixer.music.set_volume(self.volume)
+            elif key in ('+', '='):
+                self.volume = min(1.0, self.volume + 0.05)
+                self.backend.set_volume(self.volume)
+            elif key in ('-', '_'):
+                self.volume = max(0.0, self.volume - 0.05)
+                self.backend.set_volume(self.volume)
             elif key.lower() == 'q':       break
             else:                          redraw = False
 
             if redraw: self._draw_player()
 
+        self.backend.stop()
         W(CLEAR, SHOW)
 
 
