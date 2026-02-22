@@ -14,6 +14,16 @@
 * **Soporte Multiformato:** Compatible con `.mp3`, `.wav`, `.ogg`, `.flac` y `.opus`.
 * **Eficiencia:** Uso de `__slots__` para minimizar el consumo de memoria RAM.
 
+## Preview:
+
+En sistemas inmutables:
+<img width="1087" height="679" alt="image" src="https://github.com/user-attachments/assets/e6100d2a-e6b5-4884-abec-e4f74aef80f4" />
+
+En sistemas mutables:
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/e7db1c77-f007-41a7-a046-2442ce150030" />
+
+
 ---
 
 ##  Compatibilidad
