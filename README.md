@@ -41,7 +41,7 @@ Este reproductor está diseñado para ser agnóstico al hardware y funciona dond
 
 1. **Clona el repositorio:**
 ```bash
-git clone https://github.com/Arsbyte/Pymus.git
+git clone https://github.com/Ars-byte/Pymus.git
 cd pymus
 
 ```
