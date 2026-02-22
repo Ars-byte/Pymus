@@ -88,11 +88,3 @@ python3 pymus.py
 
 ---
 
-##  Requisitos
-
-* **Python 3.7+**
-* **Pygame:** Motor de audio principal.
-* **Mutagen (Opcional):** Para lectura precisa de metadatos de duración.
-* **Pypresence (Opcional):** Para integración con Discord.
-
----
