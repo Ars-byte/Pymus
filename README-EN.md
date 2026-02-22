@@ -41,7 +41,7 @@ In mutable systems:
 1. **Clone the repository:**
 
 ```bash
-git clone https://github.com/Arsbyte/Pymus.git
+git clone https://github.com/Ars-byte/Pymus.git
 cd pymus
 
 ```
