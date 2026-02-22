@@ -48,13 +48,6 @@ git clone https://github.com/Ars-byte/Pymus.git && cd Pymus
 2. **Install dependencies:**
 
 ```bash
-pip install pygame mutagen pypresence
-
-```
-
-or
-
-```bash
 pip install -r requirements.txt
 
 ```
