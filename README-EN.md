@@ -13,6 +13,10 @@
 * **Multi-format Support:** Compatible with `.mp3`, `.wav`, `.ogg`, `.flac`, and `.opus`.
 * **Efficiency:** Use of `__slots__` to minimize RAM consumption.
 
+Resource use:
+
+<img width="991" height="25" alt="image" src="https://github.com/user-attachments/assets/2a74354a-7621-4156-9245-f16e867d0f1f" />
+
 ---
 
 ## Compatibility
