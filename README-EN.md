@@ -24,6 +24,16 @@ This player is designed to be hardware-agnostic and works wherever there is a te
 * **Termux:** Thanks to its text-based interface, it is ideal for Android devices using Termux.
 * **Terminals:** Fully compatible with Linux.
 
+## Preview:
+
+In inmutable systems:
+<img width="1087" height="679" alt="image" src="https://github.com/user-attachments/assets/e6100d2a-e6b5-4884-abec-e4f74aef80f4" />
+
+In mutable systems:
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/e7db1c77-f007-41a7-a046-2442ce150030" />
+
+
 ---
 
 ## Installation
