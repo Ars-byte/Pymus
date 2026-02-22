@@ -1,6 +1,4 @@
----
-
-## PY-MUS
+# PYMUS
 
 **PY-MUS** es un reproductor de música ligero y minimalista que vive completamente en tu terminal. Diseñado para quienes prefieren la línea de comandos, ofrece una navegación fluida por carpetas, barras de progreso dinámicas y soporte para **Discord Rich Presence**.
 
