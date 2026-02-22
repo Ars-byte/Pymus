@@ -50,8 +50,12 @@ git clone https://github.com/Ars-byte/Pymus.git && cd Pymus
 
 ```bash
 pip install -r requirements.txt
-
 ```
+
+```bash
+sudo apt install vlc ffmpeg
+```
+
 3. **Ejecuta el reproductor:**
 ```bash
 python3 pymus.py
