@@ -51,6 +51,9 @@ git clone https://github.com/Ars-byte/Pymus.git && cd Pymus
 pip install -r requirements.txt
 
 ```
+```bash
+sudo apt install vlc ffmpeg
+```
 
 3. **Run the player:**
 
@@ -87,11 +90,3 @@ python3 pymus.py
 
 ---
 
-## Requirements
-
-* **Python 3.7+**
-* **Pygame:** Main audio engine.
-* **Mutagen (Optional):** For accurate duration metadata reading.
-* **Pypresence (Optional):** For Discord integration.
-
----
