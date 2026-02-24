@@ -1,4 +1,3 @@
-
 import os
 from frontend.colors import (W, CLEAR, HIDE, RESET, BOLD, DIM,
                               CYAN, GREEN, YELLOW, MAGENTA, WHITE,
@@ -49,12 +48,16 @@ def draw_player(player) -> None:
     v_bar = f'{GREEN}{"█" * v_n}{DIM}{"░" * (10 - v_n)}{RESET}'
     now   = player.playing_now or 'Stopped'
 
+    shuf_label = f'{GREEN}SHUFFLE{RESET}' if player.shuffle else f'{DIM}shuffle{RESET}'
+    loop_label = f'{GREEN}LOOP{RESET}'    if player.loop    else f'{DIM}loop{RESET}'
+
     out += [DIM, hline(cols), RESET, '\n',
             _prog_bar(player, cols), '\n',
             f' {st} {WHITE}{now[:cols - 22]}{RESET}  {v_bar}  '
             f'{DIM}{player.row + 1}/{total}{RESET}\n',
             DIM,
             '↑↓ nav  Enter play  n/p skip  Space pause  '
-            '←/h  →/l seek±5s  +/- vol  o browser  q quit',
-            RESET]
+            '←/h  →/l seek±5s  +/- vol  o browser  q quit  ',
+            RESET,
+            's:', shuf_label, '  r:', loop_label]
     W(*out)
