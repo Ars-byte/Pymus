@@ -1,4 +1,4 @@
-import os, time
+import os, time, random
 from backend.audio import make_backend
 
 SONG_EXTS = ('.mp3', '.wav', '.ogg', '.flac', '.opus')
@@ -18,9 +18,10 @@ def get_duration(filepath):
 
 class Player:
 
+
     __slots__ = ('playing_now', '_paused_flag', 'volume', 'row', 'path',
                  'songs', 'rpc', 'rpc_ok', 'song_duration',
-                 'backend', '_backend_name')
+                 'backend', '_backend_name', 'shuffle', 'loop')
 
     def __init__(self):
         self.playing_now   = None
@@ -32,6 +33,8 @@ class Player:
         self.rpc_ok        = False
         self.rpc           = None
         self.song_duration = 0.0
+        self.shuffle       = False
+        self.loop          = False
 
         self.backend, self._backend_name = make_backend()
         self.backend.set_volume(self.volume)
@@ -45,6 +48,7 @@ class Player:
             pass
 
 
+
     @property
     def is_paused(self):
         return self._paused_flag
@@ -54,7 +58,10 @@ class Player:
             return 0.0
         return self.backend.get_pos()
 
+
+
     def play_current(self):
+        """Reproduce la canción en self.row."""
         if not self.songs:
             return
         self.playing_now   = self.songs[self.row]
@@ -97,19 +104,36 @@ class Player:
         self.backend.set_volume(self.volume)
 
     def next_song(self):
-        self.row = (self.row + 1) % len(self.songs)
+        if self.loop:
+            self.play_current()
+            return
+        if self.shuffle:
+            self.row = random.randrange(len(self.songs))
+        else:
+            self.row = (self.row + 1) % len(self.songs)
         self.play_current()
 
     def prev_song(self):
-        self.row = (self.row - 1) % len(self.songs)
+        if self.loop:
+            self.play_current()
+            return
+        if self.shuffle:
+            self.row = random.randrange(len(self.songs))
+        else:
+            self.row = (self.row - 1) % len(self.songs)
         self.play_current()
+
+    def toggle_shuffle(self):
+        self.shuffle = not self.shuffle
+
+    def toggle_loop(self):
+        self.loop = not self.loop
 
     def stop(self):
         self.backend.stop()
 
     def is_ended(self):
         return self.backend.is_ended()
-
 
     def scan(self, path):
         p = os.path.expanduser(path)
