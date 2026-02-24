@@ -111,4 +111,5 @@ Pymus/
 | `+` / `-` | Subir / Bajar volumen |
 | `o` | Abrir el explorador de carpetas |
 | `q` | Salir del programa |
-
+| `s` | Random         |
+| `r` | Repetir        |
