@@ -111,3 +111,5 @@ Pymus/
 | `+` / `-` | Increase / Decrease volume |
 | `o` | Open file browser |
 | `q` | Quit the program |
+| `s` | Toggle Shuffle |
+| `r` | Toggle Loop    |
