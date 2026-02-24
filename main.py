@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys
 
 from backend.player import Player
@@ -41,7 +42,6 @@ def run():
             if player.playing_now and not player.is_paused:
                 draw_player(player)
             continue
-
         redraw = True
 
         if   key in ('\x1b[A', 'k'):   player.row = (player.row - 1) % len(player.songs)
@@ -54,6 +54,8 @@ def run():
         elif key in ('\x1b[C', 'l'):   player.seek(+5)
         elif key in ('+', '='):        player.change_volume(+0.05)
         elif key in ('-', '_'):        player.change_volume(-0.05)
+        elif key.lower() == 's':       player.toggle_shuffle()
+        elif key.lower() == 'r':       player.toggle_loop()
         elif key.lower() == 'o':
             W(CLEAR, SHOW)
             sel = browse(fd)
